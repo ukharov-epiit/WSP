@@ -1,0 +1,9 @@
+{%  extends 'predictor/base.html' %}
+{% block content %}
+    {% for mod in mods %}
+        <h4>{{ mod.name }}</h4>
+        <a>{{ mod.description }}</a>
+        <button>тренировать</button>
+    {% endfor %}
+
+{% endblock %}

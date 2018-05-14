@@ -1,0 +1,14 @@
+{%  extends 'predictor/base.html' %}
+{% block content %}
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <input type="submit" value="Тренировать" />
+        {% if success == 2 %}
+            <h3>Успешно</h3>
+        {% endif %}
+        {% if success == 1 %}
+            <h3>Что-то пошло не так, вы не заполнили все формы</h3>
+        {% endif %}
+    </form>
+{% endblock %}
