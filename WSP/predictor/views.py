@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from .forms import CityForm, DiseaseForm, CSVAggDisease, AddJSONmodel, TrainModel
-from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel
-from .tasks import add
+from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel, KerasModel
+from .tasks import trainer
 from pandas import read_csv
 from datetime import datetime
 from numpy import random
@@ -10,8 +10,9 @@ import numpy
 # Create your views here.
 
 
+
+
 def newcity(request):
-    kek = add.delay(2, 3)
     if request.method == "POST":
         form = CityForm(request.POST)
         if form.is_valid():
@@ -128,10 +129,12 @@ def newJSONModel(request):
             modelfile = json.dumps(test)
             name = form.data['name']
             description = form.data['description']
+            lookback = form.data['lookback']
             untrained = UntrainedModel()
             untrained.name = name
             untrained.mod = modelfile
             untrained.description = description
+            untrained.lookback = lookback
             untrained.save()
 
             return render(request, 'predictor/newJSON.html', {'form': form, 'success': 2})
@@ -150,13 +153,24 @@ def listJSONModels(request):
     return render(request, 'predictor/untrainedModelList.html', {'mods': mods})
 
 
-def trainModel(request):
+def trainModel(request, model_id):
 
     if request.method == "POST":
-        form = TrainModel(request.POST, request.FILES)
+        form = TrainModel(request.POST)
         if form.is_valid():
-
-
+            name = form.data['name']
+            description = form.data['description']
+            cityid = form.data['selectCity']
+            illnessid = form.data['selectDisease']
+            try:
+                weather = form.data['weather']
+            except:
+                weather = False
+            try:
+                weekly = form.data['weekly']
+            except:
+                weekly = False
+            trainer.delay(model_id, name, description, cityid, illnessid, weekly)
             return render(request, 'predictor/trainmodel.html', {'form': form, 'success': 2})
         else:
             return render(request, 'predictor/trainmodel.html', {'form': form, 'success': 1})
@@ -164,3 +178,15 @@ def trainModel(request):
         form = TrainModel()
 
     return render(request, 'predictor/trainmodel.html', {'form': form, 'success': 0})
+
+
+def listtrainedmodels(request):
+
+    mods = KerasModel.objects.all()
+
+    return render(request, 'predictor/trainedModelList.html', {'buffers': mods})
+
+
+def blank(request):
+
+    return render(request, 'predictor/blank.html')

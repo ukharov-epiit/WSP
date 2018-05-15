@@ -2,3 +2,7 @@
 celery -A your_app_name worker --pool=solo -l info
 
 #for celery to work standard config of rabbitmq is needed
+
+
+pip install cython
+pip install h5py

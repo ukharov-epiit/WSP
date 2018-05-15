@@ -1,0 +1,16 @@
+{%  extends 'predictor/base.html' %}
+{% block content %}
+
+    {% for buffer in buffers %}
+        <h4>{{ buffer.name }}</h4>
+        <a>{{ buffer.description }}</a>
+        <a>{{ buffer.acc }}</a>
+        <a>{{ buffer.illness.name}}</a>
+        <a>{{ buffer.city.name}}</a>
+        <a>{{ buffer.traindate }}</a>
+        <a>{{ buffer.hdfsig }}</a>
+        <a href={% url 'listjsonmodel' %}><button >Просмотр результатов модели</button></a>
+        <a href={% url 'listjsonmodel' %}><button >Удалить модель</button></a>
+    {% endfor %}
+
+{% endblock %}
