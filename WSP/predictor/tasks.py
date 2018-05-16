@@ -1,7 +1,7 @@
 # Create your tasks here
 from __future__ import absolute_import, unicode_literals
 from celery import shared_task
-from .models import City, Illness, KerasModel, UntrainedModel, AggregatedDiseaseDaily, AggregatedDisease, Tasker
+from .models import City, Illness, KerasModel, UntrainedModel, AggregatedDiseaseDaily, AggregatedDisease, Tasker, DiseasePrediction
 import numpy
 import matplotlib.pyplot as plt
 import math
@@ -10,10 +10,11 @@ from keras.layers import Dense, Dropout, Activation
 from keras.layers import LSTM
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.externals import joblib
 from keras import losses
 from pandas import DataFrame
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timedelta
 import json as jason
 
 
@@ -25,6 +26,15 @@ def create_dataset(dataset, look_back=3):
         dataX.append(a)
         dataY.append(dataset[i + look_back, 0])
     return numpy.array(dataX), numpy.array(dataY)
+
+
+def create_predataset(dataset, look_back=3):
+    dataX  = []
+    ll = len(dataset)
+    for i in range(len(dataset) - look_back):
+        a = dataset[i+1:(i+1 + look_back), 0]
+        dataX.append(a)
+    return numpy.array(dataX)
 
 
 def mean_absolute_percentage_error(y_true, y_pred):
@@ -97,6 +107,8 @@ def trainer(model_id, namemodel, description, cityid, illnessid, weekly):
         # serialize weights to HDF5
         guid = uuid4()
         activemodel.save_weights(str(guid) + ".h5")
+        guidmimax = uuid4()
+        joblib.dump(scaler, str(guidmimax) +'.pkl')
         kmodel = KerasModel()
         kmodel.city = city
         kmodel.illness = illness
@@ -109,9 +121,12 @@ def trainer(model_id, namemodel, description, cityid, illnessid, weekly):
         kmodel.modelstructure = modelk
         kmodel.mindatadate = dates[0]
         kmodel.maxdatadate = dates[-1]
+        kmodel.minmax = str(guidmimax) +'.pkl'
+        kmodel.active = False
         kmodel.save()
         task.timeEnd = datetime.now()
         task.result = 'Модель успешно обучена'
+
         task.save()
 
     return 1
@@ -136,7 +151,7 @@ def reader(model_id):
     dataframe = dataframe.dropna()
     dataset = dataframe.values
     dataset = dataset.astype('float32')
-    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaler = joblib.load(modelk.minmax)
     dataset = scaler.fit_transform(dataset)
     train_size = int(len(dataset) * 0.80)
     test_size = len(dataset) - train_size
@@ -154,6 +169,19 @@ def reader(model_id):
     trainPredict = activemodel.predict(trainX)
     testPredict = activemodel.predict(testX)
 
+    testScore = mean_absolute_error(testY, testPredict[:, 0])
+    print('Test Score: %.2f MAE' % (testScore))
+    testScoreS = mean_squared_error(testY, testPredict[:, 0])
+    print('Test Score: %.2f MSE' % (testScoreS))
+    testScore_ = mean_absolute_percentage_error(testY, testPredict[:, 0])
+    print('Test Score: %.2f MAPE' % (testScore_))
+
+    trainPredict = scaler.inverse_transform(trainPredict)
+    testPredict = scaler.inverse_transform(testPredict)
+    testY = scaler.inverse_transform([testY])
+    trainY = scaler.inverse_transform([trainY])
+    dataset = scaler.inverse_transform(dataset)
+
     # shift train predictions for plotting
     trainPredictPlot = numpy.empty_like(dataset)
     trainPredictPlot[:, :] = numpy.nan
@@ -164,43 +192,80 @@ def reader(model_id):
     testPredictPlot[:, :] = numpy.nan
     testPredictPlot[len(trainPredict) + (look_back * 2) + 1:len(dataset) - 1, :] = testPredict
     testPredictPlot = numpy.nan_to_num(testPredictPlot)
-    testScore = mean_absolute_error(testY, testPredict[:, 0])
-    print('Test Score: %.2f MAE' % (testScore))
-    testScore_ = mean_absolute_percentage_error(testY, testPredict[:, 0])
-    print('Test Score: %.2f MAPE' % (testScore_))
 
     data = {
         'labels': dates,
         'datasets': [{
-            'data': dataset[:, 0].tolist(),
-            'label': 'Актуальные данные',
+            'data': testPredictPlot[:, 0].tolist(),
+            'label': 'Тестовое прогнозирование',
             'fill': False,
-            'backgroundColor': '#187ae2',
-            'borderColor': '#187ae2'
+            'backgroundColor': '#e29e17',
+            'borderColor': '#e29e17'
         },
-            {
-                'data': testPredictPlot[:, 0].tolist(),
-                'label': 'Тестовое прогнозирование',
-                'fill': False,
-                'backgroundColor': '#e29e17',
-                'borderColor': '#e29e17'
-            },
             {
                 'data': trainPredictPlot[:, 0].tolist(),
                 'label': 'Тренировочное прогнозирование',
                 'fill': False,
                 'backgroundColor': '#11dd4e',
                 'borderColor': '#11dd4e'
+            },
+            {
+                'data': dataset[:, 0].tolist(),
+                'label': 'Актуальные данные',
+                'fill': False,
+                'backgroundColor': '#187ae2',
+                'borderColor': '#187ae2'
             }]
     }
     jsondata = jason.dumps(data)
 
     return testScore, testScore_, jsondata
 
-
 @shared_task
-def mul(x, y):
-    return x * y
+def predict():
+    # fix random seed for reproducibility
+
+    numpy.random.seed(7)
+
+    models = KerasModel.objects.filter(active=True)
+    for modelk in models:
+
+        diseases = AggregatedDisease.objects.filter(city=modelk.city, illness=modelk.illness).order_by('-date')[:3*modelk.modelstructure.lookback+5]
+        counts = list(reversed([x.count for x in diseases]))
+        dates = list(reversed([x.date for x in diseases]))
+        name = {'Count': counts}
+        dataframe = DataFrame.from_dict(name)
+        dataframe = dataframe.rolling(window=4).mean()
+        dataframe = dataframe.pct_change()
+        dataframe = dataframe.dropna()
+        dataset = dataframe.values
+        dataset = dataset.astype('float32')
+        scaler = joblib.load(modelk.minmax) #MinMaxScaler(feature_range=(0, 1))
+        dataset = scaler.fit_transform(dataset)
+        # reshape into X=t and Y=t+3
+        look_back = modelk.modelstructure.lookback
+        trainX = create_predataset(dataset, look_back)
+        # reshape input to be [samples, time steps, features]
+        trainX = numpy.reshape(trainX, (trainX.shape[0], 1, trainX.shape[1]))
+        activemodel = model_from_json(modelk.modelstructure.mod)
+        activemodel.load_weights(modelk.hdfsig)
+        # make predictions
+        trainPredict = activemodel.predict(trainX)
+        trainPredict = scaler.inverse_transform(trainPredict)
+        prediction = trainPredict[:, 0].tolist()[-1]
+        disease = DiseasePrediction()
+        disease.modelk = modelk
+        disease.weekly = modelk.weekly
+        disease.city = modelk.city
+        disease.illness = modelk.illness
+        disease.count = prediction*100
+        if modelk.weekly:
+            disease.date = dates[-1] + timedelta(days=7)
+        else:
+            disease.date = dates[-1] + timedelta(days=1)
+        disease.save()
+
+    return True
 
 
 @shared_task

@@ -1,0 +1,25 @@
+{% extends 'predictor/base.html' %}
+{% load mathfilters %}
+{% block content %}
+    <table class="table">
+        <thead>
+        <tr>
+            <th scope="col">Дата</th>
+            <th scope="col">Значение</th>
+            <th scope="col">Модель</th>
+            <th scope="col">Город</th>
+            <th scope="col">Болезнь</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for block in blocks %}
+            <tr>
+                <td>{{ block.date }}</td>
+                <td>{{ block.count|div:100 }}</td>
+                <td>{{ block.modelk.name }}</td>
+                <td>{{ block.city.name }}</td>
+                <td>{{ block.illness.name }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+{% endblock %}

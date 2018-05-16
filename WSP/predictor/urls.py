@@ -2,7 +2,6 @@ from django.urls import path
 
 from . import views
 
-
 urlpatterns = [
     path('', views.blank, name='blank'),
     path('newcity/', views.newcity, name='newcity'),
@@ -21,4 +20,7 @@ urlpatterns = [
     path('deleteuntrained/<int:modelid>/', views.untrainedmodelremove, name='deleteuntrained'),
     path('trainedview/<int:modelid>/', views.testtrainedmodel, name='trainedview'),
     path('tasks/', views.tasks, name='tasks'),
+    path('activationmodel/<int:modelid>/', views.changeactivitymodel, name='activationmodel'),
+    path('predictall/', views.predictactivity, name='predictactive'),
+    path('predictions/', views.predictions, name='predictions'),
 ]

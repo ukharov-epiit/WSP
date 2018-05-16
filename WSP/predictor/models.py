@@ -35,6 +35,8 @@ class KerasModel(models.Model):
     mindatadate = models.DateField(null=True)
     maxdatadate = models.DateField(null=True)
     weekly = models.BooleanField()
+    active = models.BooleanField()
+    minmax = models.CharField(max_length=200)
 
 
 
@@ -69,10 +71,11 @@ class Temperature(models.Model):
 
 class DiseasePrediction(models.Model):
     city = models.ForeignKey(City, on_delete=models.CASCADE)
-    date = models.DateField()
-    count = models.IntegerField()
+    date = models.DateTimeField()
+    count = models.FloatField()
     illness = models.ForeignKey(Illness, on_delete=models.CASCADE)
     modelk = models.ForeignKey(KerasModel, on_delete=models.CASCADE)
+    weekly = models.BooleanField()
 
 
 class Tasker(models.Model):

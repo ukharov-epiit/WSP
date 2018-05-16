@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from .forms import CityForm, DiseaseForm, CSVAggDisease, AddJSONmodel, TrainModel
-from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel, KerasModel, Tasker
-from .tasks import trainer, reader
+from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel, KerasModel, Tasker, DiseasePrediction
+from .tasks import trainer, reader, predict
 from pandas import read_csv
 from datetime import datetime
 from numpy import random
@@ -59,6 +59,7 @@ def newDiseaseAgragated(request):
             dest = random.randint(1, 100)
             handle_uploaded_file(kek, dest)
             dataframe = read_csv(str(dest) + '.csv', usecols=[0, 1, 2], engine='python', skipfooter=1)
+
             dataset = dataframe.as_matrix()
             for d in dataset:
                 date = datetime.strptime('%d' % (d[0],) + '-' + '%d' % (d[1],) + '-0', '%Y-%W-%w')
@@ -76,7 +77,7 @@ def newDiseaseAgragated(request):
                 else:
                     tryfind[0].count = count
                     tryfind[0].save()
-
+            os.remove(str(dest) + '.csv')
             return render(request, 'predictor/newFile.html', {'form': form, 'success': 2})
         else:
             return render(request, 'predictor/newFile.html', {'form': form, 'success': 1})
@@ -112,7 +113,7 @@ def newDiseaseAgragatedDaily(request):
                 else:
                     tryfind[0].count = count
                     tryfind[0].save()
-
+            os.remove(str(dest) + '.csv')
             return render(request, 'predictor/newFile.html', {'form': form, 'success': 2})
         else:
             return render(request, 'predictor/newFile.html', {'form': form, 'success': 1})
@@ -232,6 +233,7 @@ def trainedmodelremove(request, modelid):
 
     model = KerasModel.objects.get(id=modelid)
     os.remove(model.hdfsig)
+    os.remove(model.minmax)
     model.delete()
 
     return redirect(listtrainedmodels)
@@ -252,3 +254,26 @@ def tasks(request):
     data = Tasker.objects.all().order_by('-timeStart')[:50]
 
     return render(request, 'predictor/tasks.html', {'blocks': data})
+
+
+def changeactivitymodel(request, modelid):
+
+    data = KerasModel.objects.get(id=modelid)
+    data.active = not data.active
+    data.save()
+
+    return redirect(listtrainedmodels)
+
+
+def predictactivity(request):
+
+    predict.delay()
+
+    return redirect(listtrainedmodels)
+
+
+def predictions(request):
+
+    pred = DiseasePrediction.objects.all().order_by('-date')
+
+    return render(request, 'predictor/predictions.html', {'blocks': pred})

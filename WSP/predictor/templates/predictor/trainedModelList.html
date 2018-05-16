@@ -1,4 +1,4 @@
-{%  extends 'predictor/base.html' %}
+{% extends 'predictor/base.html' %}
 {% block content %}
 
     {% for buffer in buffers %}
@@ -6,13 +6,22 @@
             <div class="card-body">
                 <h5 class="card-title">{{ buffer.name }}</h5>
                 <p class="card-text">Описание: {{ buffer.description }}</p>
+                <p class="card-text">Модель: {{ buffer.modelstructure.name}}</p>
                 <p class="card-text">Точность MAPE: {{ buffer.acc }}</p>
                 <p class="card-text">Заболевание: {{ buffer.illness.name }}</p>
                 <p class="card-text">Город: {{ buffer.city.name }}</p>
                 <p class="card-text">Дата тренировки: {{ buffer.traindate }}</p>
                 <p class="card-text">{{ buffer.hdfsig }}</p>
-                <a href="{% url 'trainedview' buffer.id %}" class="btn btn-default pull-right">Просмотр результатов модели</a>
-                <a href="{% url 'deletetrained' buffer.id %}" class="btn btn-success pull-right">Сделать прогноз</a>
+                <a href="{% url 'trainedview' buffer.id %}" class="btn btn-outline-primary pull-right">Просмотр
+                    результатов
+                    модели</a>
+                <a href="{% url 'activationmodel' buffer.id %}" class="btn btn-outline-warning pull-right">
+                    {% if buffer.active %}
+                        Деактивировать
+                    {% else %}
+                        Активировать
+                    {% endif %}
+                </a>
                 <a href="{% url 'deletetrained' buffer.id %}" class="btn btn-danger pull-right">Удалить</a>
             </div>
         </div>
