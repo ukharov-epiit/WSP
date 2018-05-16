@@ -1,9 +1,11 @@
-#celery to work under windows
+#celery works under windows with this line
 celery -A WSP worker --pool=solo -l info
 
 #for celery to work standard config of rabbitmq is needed
 
+python manage.py makemigrations
+python manage.py migrate
 
-pip install cython
-pip install h5py
-pip install django-mathfilters
+install requirements by using this command:
+
+pip install -r requirements.txt

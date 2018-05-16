@@ -1,0 +1,13 @@
+django
+cython
+celery
+django-mathfilters
+keras 
+numpy
+matplotlib
+sklearn
+pandas
+h5py
+django-mathfilters
+sqlalchemy
+psycopg2
