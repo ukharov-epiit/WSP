@@ -1,9 +1,15 @@
-{%  extends 'predictor/base.html' %}
+{% extends 'predictor/base.html' %}
 {% block content %}
-    {% for mod in mods %}
-        <h4>{{ mod.name }}</h4>
-        <a>{{ mod.description }}</a>
-        <a href={% url 'trainmodel' mod.id %}><button >тренировать</button></a>
+    {% for buffer in mods %}
+        <div class="card" style="margin: 5px">
+            <div class="card-body">
+                <h5 class="card-title">{{ buffer.name }}</h5>
+                <p class="card-text">Описание: {{ buffer.description }}</p>
+                <p class="card-text">Lookback: {{ buffer.lookback }}</p>
+                <a href="{% url 'trainmodel' buffer.id %}" class="btn btn-success pull-right">Тренировать</a>
+                <a href="{% url 'deleteuntrained' buffer.id %}" class="btn btn-danger pull-right">Удалить</a>
+            </div>
+        </div>
     {% endfor %}
 
 {% endblock %}

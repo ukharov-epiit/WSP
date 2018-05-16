@@ -37,8 +37,8 @@ class DiseaseForm(forms.ModelForm):
 
 class CSVAggDisease(forms.Form):
 
-    selectDisease = forms.ModelChoiceField(queryset=Illness.objects.all(), label='Заболевание', widget=forms.Select(attrs={'class': 'form-control'}))
-    selectCity = forms.ModelChoiceField(queryset=City.objects.all(), label='Город', widget=forms.Select(attrs={'class': 'form-control'}))
+    selectDisease = forms.ModelChoiceField(queryset=Illness.objects.all().order_by('name'), label='Заболевание', widget=forms.Select(attrs={'class': 'form-control'}))
+    selectCity = forms.ModelChoiceField(queryset=City.objects.all().order_by('name'), label='Город', widget=forms.Select(attrs={'class': 'form-control'}))
 
     fileD = forms.FileField(widget=forms.FileInput(attrs={'class': 'form-control-file'}), label='Данные')
 
@@ -54,7 +54,7 @@ class AddJSONmodel(forms.Form):
 class TrainModel(forms.Form):
     name = forms.CharField(widget=forms.TextInput(attrs={'class': 'form-control'}), label='Название')
     description = forms.CharField(widget=forms.Textarea(attrs={'class': 'form-control'}), label='Описание')
-    selectDisease = forms.ModelChoiceField(queryset=Illness.objects.all(), label='Заболевание', widget=forms.Select(attrs={'class': 'form-control'}))
-    selectCity = forms.ModelChoiceField(queryset=City.objects.all(), label='Город', widget=forms.Select(attrs={'class': 'form-control'}))
+    selectDisease = forms.ModelChoiceField(queryset=Illness.objects.all().order_by('name'), label='Заболевание', widget=forms.Select(attrs={'class': 'form-control'}))
+    selectCity = forms.ModelChoiceField(queryset=City.objects.all().order_by('name'), label='Город', widget=forms.Select(attrs={'class': 'form-control'}))
     weekly = forms.BooleanField(label='Недельные данные', initial='on', required=False)
     weather = forms.BooleanField(label='Включить погоду', initial='on', required=False)

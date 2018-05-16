@@ -1,0 +1,17 @@
+{% extends 'predictor/base.html' %}
+{% load static %}
+
+{% block content %}
+    <canvas id="myChart" width="350" height="350"></canvas>
+    <script src="{% static "predictor/js/Chart.bundle.min.js" %}"></script>
+    <script>
+
+        var ctx = document.getElementById("myChart").getContext('2d');
+        var jjson = JSON.parse('{{ data | escapejs }}')
+        var myChart = new Chart(ctx, {
+            type: 'line',
+            data: jjson,
+            options: {}
+        });
+    </script>
+{% endblock %}

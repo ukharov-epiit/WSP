@@ -2,15 +2,21 @@
 {% block content %}
 
     {% for buffer in buffers %}
-        <h4>{{ buffer.name }}</h4>
-        <a>{{ buffer.description }}</a>
-        <a>{{ buffer.acc }}</a>
-        <a>{{ buffer.illness.name}}</a>
-        <a>{{ buffer.city.name}}</a>
-        <a>{{ buffer.traindate }}</a>
-        <a>{{ buffer.hdfsig }}</a>
-        <a href={% url 'listjsonmodel' %}><button >Просмотр результатов модели</button></a>
-        <a href={% url 'listjsonmodel' %}><button >Удалить модель</button></a>
+        <div class="card" style="margin: 5px">
+            <div class="card-body">
+                <h5 class="card-title">{{ buffer.name }}</h5>
+                <p class="card-text">Описание: {{ buffer.description }}</p>
+                <p class="card-text">Точность MAPE: {{ buffer.acc }}</p>
+                <p class="card-text">Заболевание: {{ buffer.illness.name }}</p>
+                <p class="card-text">Город: {{ buffer.city.name }}</p>
+                <p class="card-text">Дата тренировки: {{ buffer.traindate }}</p>
+                <p class="card-text">{{ buffer.hdfsig }}</p>
+                <a href="{% url 'trainedview' buffer.id %}" class="btn btn-default pull-right">Просмотр результатов модели</a>
+                <a href="{% url 'deletetrained' buffer.id %}" class="btn btn-success pull-right">Сделать прогноз</a>
+                <a href="{% url 'deletetrained' buffer.id %}" class="btn btn-danger pull-right">Удалить</a>
+            </div>
+        </div>
+
     {% endfor %}
 
 {% endblock %}

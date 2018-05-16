@@ -1,0 +1,11 @@
+{% extends 'predictor/base.html' %}
+{% block content %}
+    {% for mod in buffers %}
+        <div class="card" style="margin: 5px">
+            <div class="card-body">
+                <h5 class="card-title">{{ mod.name }}</h5>
+                <a href="{% url 'deletecity' mod.id %}" class="btn btn-danger pull-right">Удалить</a>
+            </div>
+        </div>
+    {% endfor %}
+{% endblock %}

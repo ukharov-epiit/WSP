@@ -14,15 +14,18 @@ from keras import losses
 from pandas import DataFrame
 from uuid import uuid4
 from datetime import datetime
+import json as jason
+
 
 # convert an array of values into a dataset matrix
 def create_dataset(dataset, look_back=3):
     dataX, dataY = [], []
-    for i in range(len(dataset)-look_back-1):
-        a = dataset[i:(i+look_back), 0]
+    for i in range(len(dataset) - look_back - 1):
+        a = dataset[i:(i + look_back), 0]
         dataX.append(a)
         dataY.append(dataset[i + look_back, 0])
     return numpy.array(dataX), numpy.array(dataY)
+
 
 def mean_absolute_percentage_error(y_true, y_pred):
     y_true, y_pred = numpy.array(y_true), numpy.array(y_pred)
@@ -54,7 +57,7 @@ def trainer(model_id, namemodel, description, cityid, illnessid, weekly):
         dates = [x.date for x in diseases]
         name = {'Count': counts}
         dataframe = DataFrame.from_dict(name)
-        dataframe = dataframe.rolling(window=8, on='Count').mean()
+        dataframe = dataframe.rolling(window=8).mean()
         dataframe = dataframe.pct_change()
         dataframe = dataframe.dropna()
         dataset = dataframe.values
@@ -112,6 +115,87 @@ def trainer(model_id, namemodel, description, cityid, illnessid, weekly):
         task.save()
 
     return 1
+
+
+@shared_task
+def reader(model_id):
+    # fix random seed for reproducibility
+
+    numpy.random.seed(7)
+
+    modelk = KerasModel.objects.get(id=model_id)
+    json = modelk.modelstructure.mod
+
+    diseases = AggregatedDisease.objects.filter(city=modelk.city, illness=modelk.illness).order_by('date')
+    counts = [x.count for x in diseases]
+    dates = [str(x.date) for x in diseases]
+    name = {'Count': counts}
+    dataframe = DataFrame.from_dict(name)
+    dataframe = dataframe.rolling(window=8).mean()
+    dataframe = dataframe.pct_change()
+    dataframe = dataframe.dropna()
+    dataset = dataframe.values
+    dataset = dataset.astype('float32')
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    dataset = scaler.fit_transform(dataset)
+    train_size = int(len(dataset) * 0.80)
+    test_size = len(dataset) - train_size
+    train, test = dataset[0:train_size, :], dataset[train_size:len(dataset), :]
+    # reshape into X=t and Y=t+3
+    look_back = modelk.modelstructure.lookback
+    trainX, trainY = create_dataset(train, look_back)
+    testX, testY = create_dataset(test, look_back)
+    # reshape input to be [samples, time steps, features]
+    trainX = numpy.reshape(trainX, (trainX.shape[0], 1, trainX.shape[1]))
+    testX = numpy.reshape(testX, (testX.shape[0], 1, testX.shape[1]))
+    activemodel = model_from_json(modelk.modelstructure.mod)
+    activemodel.load_weights(modelk.hdfsig)
+    # make predictions
+    trainPredict = activemodel.predict(trainX)
+    testPredict = activemodel.predict(testX)
+
+    # shift train predictions for plotting
+    trainPredictPlot = numpy.empty_like(dataset)
+    trainPredictPlot[:, :] = numpy.nan
+    trainPredictPlot[look_back:len(trainPredict) + look_back, :] = trainPredict
+    trainPredictPlot = numpy.nan_to_num(trainPredictPlot)
+    # shift test predictions for plotting
+    testPredictPlot = numpy.empty_like(dataset)
+    testPredictPlot[:, :] = numpy.nan
+    testPredictPlot[len(trainPredict) + (look_back * 2) + 1:len(dataset) - 1, :] = testPredict
+    testPredictPlot = numpy.nan_to_num(testPredictPlot)
+    testScore = mean_absolute_error(testY, testPredict[:, 0])
+    print('Test Score: %.2f MAE' % (testScore))
+    testScore_ = mean_absolute_percentage_error(testY, testPredict[:, 0])
+    print('Test Score: %.2f MAPE' % (testScore_))
+
+    data = {
+        'labels': dates,
+        'datasets': [{
+            'data': dataset[:, 0].tolist(),
+            'label': 'Актуальные данные',
+            'fill': False,
+            'backgroundColor': '#187ae2',
+            'borderColor': '#187ae2'
+        },
+            {
+                'data': testPredictPlot[:, 0].tolist(),
+                'label': 'Тестовое прогнозирование',
+                'fill': False,
+                'backgroundColor': '#e29e17',
+                'borderColor': '#e29e17'
+            },
+            {
+                'data': trainPredictPlot[:, 0].tolist(),
+                'label': 'Тренировочное прогнозирование',
+                'fill': False,
+                'backgroundColor': '#11dd4e',
+                'borderColor': '#11dd4e'
+            }]
+    }
+    jsondata = jason.dumps(data)
+
+    return testScore, testScore_, jsondata
 
 
 @shared_task

@@ -1,10 +1,11 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from .forms import CityForm, DiseaseForm, CSVAggDisease, AddJSONmodel, TrainModel
-from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel, KerasModel
-from .tasks import trainer
+from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel, KerasModel, Tasker
+from .tasks import trainer, reader
 from pandas import read_csv
 from datetime import datetime
 from numpy import random
+import os
 import json
 import numpy
 # Create your views here.
@@ -19,8 +20,9 @@ def newcity(request):
             post = form.save(commit=False)
             if len(City.objects.filter(name=post.name).all()) == 0:
                 post.save()
-            return render(request, 'predictor/newCity.html', {'form': form})
-
+            return render(request, 'predictor/newCity.html', {'form': form, 'success': 2})
+        else:
+            return render(request, 'predictor/newCity.html', {'form': form, 'success': 1})
     else:
         form = CityForm()
     return render(request, 'predictor/newCity.html', {'form': form})
@@ -33,8 +35,9 @@ def newdisease(request):
             post = form.save(commit=False)
             if len(Illness.objects.filter(name=post.name).all()) == 0:
                 post.save()
-            return render(request, 'predictor/newCity.html', {'form': form})
-
+            return render(request, 'predictor/newCity.html', {'form': form, 'success': 2})
+        else:
+            return render(request, 'predictor/newCity.html', {'form': form, 'success': 1})
     else:
         form = DiseaseForm()
 
@@ -148,7 +151,7 @@ def newJSONModel(request):
 
 def listJSONModels(request):
 
-    mods = UntrainedModel.objects.all()
+    mods = UntrainedModel.objects.all().order_by('name')
 
     return render(request, 'predictor/untrainedModelList.html', {'mods': mods})
 
@@ -182,11 +185,70 @@ def trainModel(request, model_id):
 
 def listtrainedmodels(request):
 
-    mods = KerasModel.objects.all()
+    mods = KerasModel.objects.all().order_by('name')
 
     return render(request, 'predictor/trainedModelList.html', {'buffers': mods})
 
 
+def listcities(request):
+
+    mods = City.objects.all().order_by('name')
+
+    return render(request, 'predictor/citylist.html', {'buffers': mods})
+
+
+def listillness(request):
+
+    mods = Illness.objects.all().order_by('name')
+
+    return render(request, 'predictor/listillness.html', {'buffers': mods})
+
 def blank(request):
 
     return render(request, 'predictor/blank.html')
+
+def cityremove(request, cityid):
+
+    City.objects.get(id=cityid).delete()
+
+    return redirect(listcities)
+
+
+def illnessremove(request, illnessid):
+
+    Illness.objects.get(id=illnessid).delete()
+
+    return redirect(listillness)
+
+
+def untrainedmodelremove(request, modelid):
+
+    UntrainedModel.objects.get(id=modelid).delete()
+
+    return redirect(listJSONModels)
+
+
+def trainedmodelremove(request, modelid):
+
+    model = KerasModel.objects.get(id=modelid)
+    os.remove(model.hdfsig)
+    model.delete()
+
+    return redirect(listtrainedmodels)
+
+
+def testtrainedmodel(request, modelid):
+
+    model = KerasModel.objects.get(id=modelid)
+    task = reader.delay(modelid)
+
+    mae,mape,data = task.get()
+
+    return render(request, 'predictor/trainedview.html', {'data': data, 'mae': mae, 'mape': mape})
+
+
+def tasks(request):
+
+    data = Tasker.objects.all().order_by('-timeStart')[:50]
+
+    return render(request, 'predictor/tasks.html', {'blocks': data})
