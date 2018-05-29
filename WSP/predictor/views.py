@@ -1,12 +1,13 @@
 from django.shortcuts import render, redirect
-from .forms import CityForm, DiseaseForm, CSVAggDisease, AddJSONmodel, TrainModel
-from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel, KerasModel, Tasker, DiseasePrediction
+from .forms import CityForm, DiseaseForm, CSVAggDisease, AddJSONmodel, TrainModel, CSVTemp, AddHDR5toModel
+from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel, KerasModel, Tasker, DiseasePrediction, Temperature
 from .tasks import trainer, reader, predict
 from pandas import read_csv
 from datetime import datetime
 from numpy import random
 import os
 import json
+from uuid import uuid4
 import numpy
 # Create your views here.
 
@@ -44,8 +45,8 @@ def newdisease(request):
     return render(request, 'predictor/newCity.html', {'form': form})
 
 
-def handle_uploaded_file(f, des):
-    with open(str(des)+'.csv', 'wb+') as destination:
+def handle_uploaded_file(f, des, typer='.csv'):
+    with open(str(des)+typer, 'wb+') as destination:
         for chunk in f.chunks():
             destination.write(chunk)
 
@@ -58,12 +59,11 @@ def newDiseaseAgragated(request):
             kek = form.files['fileD']
             dest = random.randint(1, 100)
             handle_uploaded_file(kek, dest)
-            dataframe = read_csv(str(dest) + '.csv', usecols=[0, 1, 2], engine='python', skipfooter=1)
+            dataframe = read_csv(str(dest) + '.csv', usecols=[0, 1, 2], engine='c')
 
-            dataset = dataframe.as_matrix()
-            for d in dataset:
-                date = datetime.strptime('%d' % (d[0],) + '-' + '%d' % (d[1],) + '-0', '%Y-%W-%w')
-                count = d[2]
+            for d in dataframe.iterrows():
+                date = datetime.strptime('%d' % (d[1]['epi_year'],) + '-' + '%d' % (d[1]['epi_week'],) + '-0', '%Y-%W-%w')
+                count = d[1]['count']
                 city = City.objects.get(id=form.data['selectCity'])
                 illness = Illness.objects.get(id=form.data['selectDisease'])
                 tryfind = AggregatedDisease.objects.filter(date=date, city=city, illness=illness)
@@ -87,6 +87,42 @@ def newDiseaseAgragated(request):
     return render(request, 'predictor/newFile.html', {'form': form, 'success': 0})
 
 
+def LoadCityTemp(request):
+
+    if request.method == "POST":
+        form = CSVTemp(request.POST, request.FILES)
+        if form.is_valid():
+            kek = form.files['fileD']
+            dest = random.randint(1, 100)
+            handle_uploaded_file(kek, dest)
+            dataframe = read_csv(str(dest) + '.csv', usecols=[0, 1, 5], engine='c')
+            dataframe = dataframe.dropna()
+            dataset = dataframe.as_matrix()
+            for d in dataset:
+                date = datetime.strptime(d[0], '%d.%m.%Y %H:%M')
+                temp = 273.15 + int(d[1])
+                city = City.objects.get(id=form.data['selectCity'])
+                tryfind = Temperature.objects.filter(date=date, city=city)
+                if len(tryfind) == 0:
+                    agg = Temperature()
+                    agg.temp = temp
+                    agg.date = date
+                    agg.city = city
+                    agg.humidity = int(d[2])
+                    agg.save()
+                else:
+                    tryfind[0].count = temp
+                    tryfind[0].save()
+            os.remove(str(dest) + '.csv')
+            return render(request, 'predictor/newTemps.html', {'form': form, 'success': 2})
+        else:
+            return render(request, 'predictor/newTemps.html', {'form': form, 'success': 1})
+    else:
+        form = CSVTemp()
+
+    return render(request, 'predictor/newTemps.html', {'form': form, 'success': 0})
+
+
 def newDiseaseAgragatedDaily(request):
 
     if request.method == "POST":
@@ -95,7 +131,7 @@ def newDiseaseAgragatedDaily(request):
             kek = form.files['fileD']
             dest = random.randint(1, 100)
             handle_uploaded_file(kek, dest)
-            dataframe = read_csv(str(dest) + '.csv', usecols=[0, 8], engine='python', skipfooter=1)
+            dataframe = read_csv(str(dest) + '.csv', usecols=[0, 8], engine='c')
             dataset = dataframe.as_matrix()
             for d in dataset:
                 date = datetime.strptime(d[0], '%Y-%m-%d')
@@ -150,6 +186,60 @@ def newJSONModel(request):
     return render(request, 'predictor/newJSON.html', {'form': form, 'success': 0})
 
 
+def TrainedH5(request):
+
+    if request.method == "POST":
+        form = AddHDR5toModel(request.POST, request.FILES)
+        if form.is_valid():
+
+            try:
+                weather = form.data['weather']
+            except:
+                weather = False
+            try:
+                weekly = form.data['weekly']
+            except:
+                weekly = False
+
+            kek = form.files['fileD']
+            minT = form.files['pklT']
+            minD = form.files['pklD']
+            name = form.data['name']
+            description = form.data['description']
+            cityid = form.data['selectCity']
+            illnessid = form.data['selectDisease']
+            model_id = form.data['selectModel']
+            guid = uuid4()
+            guidmax = uuid4()
+            guidmaxTt  = uuid4()
+            handle_uploaded_file(kek, guid, '.h5')
+            handle_uploaded_file(minT, guidmaxTt, '.pkl')
+            handle_uploaded_file(minD, guidmax, '.pkl')
+            kmodel = KerasModel()
+            kmodel.city = cityid
+            kmodel.illness = illnessid
+            kmodel.name = name
+            kmodel.description = description
+            kmodel.hdfsig = str(guid) + ".h5"
+            kmodel.traindate = datetime.now()
+            kmodel.acc = 0
+            kmodel.weekly = weekly
+            kmodel.modelstructure = model_id
+            kmodel.mindatadate = datetime.now()
+            kmodel.maxdatadate = datetime.now()
+            kmodel.minmax = str(guidmax) + '.pkl'
+            kmodel.minmaxTemp = str(guidmaxTt) + '.pkl'
+            kmodel.active = False
+            kmodel.save()
+            return render(request, 'predictor/trainedh5.html', {'form': form, 'success': 2})
+        else:
+            return render(request, 'predictor/trainedh5.html', {'form': form, 'success': 1})
+    else:
+        form = AddHDR5toModel()
+
+    return render(request, 'predictor/trainedh5.html', {'form': form, 'success': 0})
+
+
 def listJSONModels(request):
 
     mods = UntrainedModel.objects.all().order_by('name')
@@ -174,7 +264,7 @@ def trainModel(request, model_id):
                 weekly = form.data['weekly']
             except:
                 weekly = False
-            trainer.delay(model_id, name, description, cityid, illnessid, weekly)
+            trainer.delay(model_id, name, description, cityid, illnessid, weekly, weather)
             return render(request, 'predictor/trainmodel.html', {'form': form, 'success': 2})
         else:
             return render(request, 'predictor/trainmodel.html', {'form': form, 'success': 1})

@@ -1,7 +1,7 @@
 # Create your tasks here
 from __future__ import absolute_import, unicode_literals
 from celery import shared_task
-from .models import City, Illness, KerasModel, UntrainedModel, AggregatedDiseaseDaily, AggregatedDisease, Tasker, DiseasePrediction
+from .models import City, Illness, KerasModel, UntrainedModel, AggregatedDiseaseDaily, AggregatedDisease, Tasker, DiseasePrediction, Temperature, TemperaturePredicted
 import numpy
 import matplotlib.pyplot as plt
 import math
@@ -16,8 +16,9 @@ from pandas import DataFrame
 from uuid import uuid4
 from datetime import datetime, timedelta
 import json as jason
-
-
+import requests
+import time
+from celery import Task
 # convert an array of values into a dataset matrix
 def create_dataset(dataset, look_back=3):
     dataX, dataY = [], []
@@ -27,6 +28,13 @@ def create_dataset(dataset, look_back=3):
         dataY.append(dataset[i + look_back, 0])
     return numpy.array(dataX), numpy.array(dataY)
 
+def create_datasetAware(dataset, look_back=3):
+    dataX, dataY = [], []
+    for i in range(len(dataset)-look_back-1):
+        a = dataset[i:(i+look_back)]
+        dataX.append(a)
+        dataY.append(dataset[i + look_back,0])
+    return numpy.array(dataX), numpy.array(dataY)
 
 def create_predataset(dataset, look_back=3):
     dataX  = []
@@ -42,8 +50,10 @@ def mean_absolute_percentage_error(y_true, y_pred):
     return numpy.mean(numpy.abs((y_true - y_pred) / y_true)) * 100
 
 
+
+
 @shared_task
-def trainer(model_id, namemodel, description, cityid, illnessid, weekly):
+def trainer(model_id, namemodel, description, cityid, illnessid, weekly, weather):
     # fix random seed for reproducibility
 
     numpy.random.seed(7)
@@ -61,14 +71,19 @@ def trainer(model_id, namemodel, description, cityid, illnessid, weekly):
     else:
         weekly = False
 
-    if weekly:
+    if weather == 'on':
+        weather = True
+    else:
+        weather = False
+
+    if weekly and  not weather:
         diseases = AggregatedDisease.objects.filter(city=city, illness=illness).order_by('date')
         counts = [x.count for x in diseases]
         dates = [x.date for x in diseases]
         name = {'Count': counts}
         dataframe = DataFrame.from_dict(name)
-        dataframe = dataframe.rolling(window=8).mean()
-        dataframe = dataframe.pct_change()
+        dataframe = dataframe.rolling(window=4).mean()
+        dataframe = dataframe.diff()
         dataframe = dataframe.dropna()
         dataset = dataframe.values
         dataset = dataset.astype('float32')
@@ -123,12 +138,20 @@ def trainer(model_id, namemodel, description, cityid, illnessid, weekly):
         kmodel.maxdatadate = dates[-1]
         kmodel.minmax = str(guidmimax) +'.pkl'
         kmodel.active = False
+        kmodel.weather = False
         kmodel.save()
         task.timeEnd = datetime.now()
         task.result = 'Модель успешно обучена'
 
         task.save()
+    elif not weather and not weekly:
+        diseases = AggregatedDisease.objects.filter(city=city, illness=illness).order_by('date')
+        counts = [x.count for x in diseases]
+        dates = [x.date for x in diseases]
+        name = {'Count': counts, 'Dates': dates}
+        temps = Temperature.objects.filter(city=city, illness=illness).order_by('date')
 
+        return 2
     return 1
 
 
@@ -146,8 +169,8 @@ def reader(model_id):
     dates = [str(x.date) for x in diseases]
     name = {'Count': counts}
     dataframe = DataFrame.from_dict(name)
-    dataframe = dataframe.rolling(window=8).mean()
-    dataframe = dataframe.pct_change()
+    dataframe = dataframe.rolling(window=4).mean()
+    dataframe = dataframe.diff()
     dataframe = dataframe.dropna()
     dataset = dataframe.values
     dataset = dataset.astype('float32')
@@ -236,7 +259,7 @@ def predict():
         name = {'Count': counts}
         dataframe = DataFrame.from_dict(name)
         dataframe = dataframe.rolling(window=4).mean()
-        dataframe = dataframe.pct_change()
+        dataframe = dataframe.diff()
         dataframe = dataframe.dropna()
         dataset = dataframe.values
         dataset = dataset.astype('float32')
@@ -269,5 +292,45 @@ def predict():
 
 
 @shared_task
-def xsum(numbers):
-    return sum(numbers)
+def load_temperature():
+    key = 'd6bbc51396ecf08d4b745f198cb99c87'
+    cities = City.objects.all()
+    for city in cities:
+        request = requests.get('http://api.openweathermap.org/data/2.5/weather?q=' + city.internationalName +'&appid=' + key)
+        if request.status_code == 200:
+            data = request.json()
+            if data['cod'] == '200':
+                temp = Temperature()
+                temp.city = city
+                temp.date = datetime.now()
+                temp.temp = data['main']['temp']
+                temp.humidity = data['main']['humidity']
+                temp.save()
+        time.sleep(1)
+
+    return 'success'
+
+
+@shared_task
+def load_forecast():
+    key = 'd6bbc51396ecf08d4b745f198cb99c87'
+    cities = City.objects.all()
+    for city in cities:
+        request = requests.get('http://api.openweathermap.org/data/2.5/forecast?q=' + city.internationalName +'&appid=' + key)
+        if request.status_code == 200:
+            data = request.json()
+            if data['cod'] == '200':
+                for i in data['list']:
+                    temp = TemperaturePredicted()
+                    temp.city = city
+                    temp.date = datetime.strptime(i['dt_txt'], '%Y-%m-%d %H:%M:%S')
+                    temp.temp = i['main']['temp']
+                    temp.humidity = i['main']['humidity']
+                    temp.save()
+        time.sleep(1)
+    return 'success'
+
+
+@shared_task
+def tetstask():
+    print('lalala')

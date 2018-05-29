@@ -11,8 +11,9 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 """
 
 import os
-
-
+from celery.schedules import timedelta
+delta = timedelta(hours=2)
+deltaForecast = timedelta(seconds=2)
 # Celery settings
 
 CELERY_BROKER_URL = 'amqp://guest:guest@localhost//'
@@ -22,6 +23,8 @@ CELERY_BROKER_URL = 'amqp://guest:guest@localhost//'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_RESULT_BACKEND = 'db+sqlite:///results.sqlite'
 CELERY_TASK_SERIALIZER = 'json'
+# Other Celery settings
+
 
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)

@@ -6,8 +6,8 @@ from django.db import models
 
 
 class City(models.Model):
-    name = models.CharField(max_length=100)
-
+    name = models.CharField(max_length=200)
+    internationalName = models.CharField(max_length=200)
     def __str__(self):
         return '%s' % (self.name)
 
@@ -36,8 +36,9 @@ class KerasModel(models.Model):
     maxdatadate = models.DateField(null=True)
     weekly = models.BooleanField()
     active = models.BooleanField()
+    weather = models.BooleanField()
     minmax = models.CharField(max_length=200)
-
+    minmaxTemp = models.CharField(max_length=200, null=True)
 
 
 class Diseased(models.Model):
@@ -64,9 +65,16 @@ class AggregatedDiseaseDaily(models.Model):
 
 class Temperature(models.Model):
     date = models.DateTimeField()
-    forecast = models.BooleanField()
     temp = models.IntegerField()
     city = models.ForeignKey(City, on_delete=models.CASCADE)
+    humidity = models.IntegerField()
+
+
+class TemperaturePredicted(models.Model):
+    date = models.DateTimeField()
+    temp = models.IntegerField()
+    city = models.ForeignKey(City, on_delete=models.CASCADE)
+    humidity = models.IntegerField()
 
 
 class DiseasePrediction(models.Model):
