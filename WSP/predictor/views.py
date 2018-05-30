@@ -333,7 +333,7 @@ def testtrainedmodel(request, modelid):
 
     model = KerasModel.objects.get(id=modelid)
     task = reader.delay(modelid)
-
+    #mae, mape, data = reader(modelid)
     mae,mape,data = task.get()
 
     return render(request, 'predictor/trainedview.html', {'data': data, 'mae': mae, 'mape': mape})
