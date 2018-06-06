@@ -260,16 +260,17 @@ def reader(model_id):
     if not modelk.weather:
 
         counts = [x.count for x in diseases]
-        dates = [str(x.date) for x in diseases]
-        name = {'Count': counts}
+        dates = [x.date for x in diseases]
+        name = {'Count': counts, 'Date': dates}
         dataframe = DataFrame.from_dict(name)
-        dataframe = dataframe.rolling(window=4).mean()
-        dataframe = dataframe.diff()
+        dataframe['Count'] = dataframe['Count'].rolling(window=4).mean().diff()
         dataframe = dataframe.dropna()
         max99 = dataframe.quantile(q=0.99, axis=0)['Count']
         min99 = dataframe.quantile(q=0.01, axis=0)['Count']
         dataframe = dataframe[dataframe['Count'] < max99]
         dataframe = dataframe[dataframe['Count'] > min99]
+        dateString = dataframe['Date'].map(lambda x: str(x)).tolist()
+        dataframe = dataframe.drop(columns=['Date'])
         dataset = dataframe.values
         dataset = dataset.astype('float32')
         scaler = joblib.load(modelk.minmax)
@@ -289,7 +290,7 @@ def reader(model_id):
         # make predictions
         trainPredict = activemodel.predict(trainX)
         testPredict = activemodel.predict(testX)
-
+        
         testScore = mean_absolute_error(testY, testPredict[:, 0])
         print('Test Score: %.2f MAE' % (testScore))
         testScoreS = mean_squared_error(testY, testPredict[:, 0])
