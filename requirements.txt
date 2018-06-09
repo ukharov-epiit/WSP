@@ -11,3 +11,4 @@ h5py
 django-mathfilters
 sqlalchemy
 psycopg2
+darkskylib

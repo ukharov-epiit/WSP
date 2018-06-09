@@ -8,6 +8,8 @@ from django.db import models
 class City(models.Model):
     name = models.CharField(max_length=200)
     internationalName = models.CharField(max_length=200)
+    latitude = models.FloatField()
+    longtitude = models.FloatField()
     def __str__(self):
         return '%s' % (self.name)
 
@@ -75,6 +77,7 @@ class TemperaturePredicted(models.Model):
     temp = models.IntegerField()
     city = models.ForeignKey(City, on_delete=models.CASCADE)
     humidity = models.IntegerField()
+    dateOfPrediction = models.DateTimeField()
 
 
 class DiseasePrediction(models.Model):

@@ -85,7 +85,7 @@ def trainer(model_id, namemodel, description, cityid, illnessid, weekly, weather
         dates = [x.date for x in diseases]
         name = {'Count': counts}
         dataframe = DataFrame.from_dict(name)
-        dataframe = dataframe.rolling(window=4).mean()
+        #dataframe = dataframe.rolling(window=4).mean()
         dataframe = dataframe.diff()
         dataframe = dataframe.dropna()
         max99 = dataframe.quantile(q=0.99, axis=0)['Count']
@@ -163,7 +163,7 @@ def trainer(model_id, namemodel, description, cityid, illnessid, weekly, weather
         name = {'Count': counts, 'Date': dates}
         dataframe = DataFrame.from_dict(name)
         #dataframe['Date'] = dataframe['Date'].map(lambda x: x.replace(hour=0, minute=0, second=0))
-        dataframe['Count'] = dataframe['Count'].rolling(window=4).mean()
+        #dataframe['Count'] = dataframe['Count'].rolling(window=4).mean()
         temperatures = Temperature.objects.filter(city=city).order_by('date')
         temps = {'Temp': [x.temp for x in temperatures], 'Date': [x.date for x in temperatures]}
         dateframe = DataFrame.from_dict(temps)
@@ -200,7 +200,7 @@ def trainer(model_id, namemodel, description, cityid, illnessid, weekly, weather
         testX = numpy.reshape(testX, (testX.shape[0], testX.shape[1], 2))
         activemodel = model_from_json(modelk.mod)
         activemodel.compile(loss=losses.mse, optimizer="adam")
-        activemodel.fit(trainX, trainY, epochs=80, verbose=2)
+        activemodel.fit(trainX, trainY, epochs=200, verbose=2)
         # make predictions
         trainPredict = activemodel.predict(trainX)
         testPredict = activemodel.predict(testX)
@@ -263,7 +263,8 @@ def reader(model_id):
         dates = [x.date for x in diseases]
         name = {'Count': counts, 'Date': dates}
         dataframe = DataFrame.from_dict(name)
-        dataframe['Count'] = dataframe['Count'].rolling(window=4).mean().diff()
+        dataframe['Count'] = dataframe['Count'].diff()
+        #dataframe['Count'] = dataframe['Count'].rolling(window=4).mean().diff()       
         dataframe = dataframe.dropna()
         max99 = dataframe.quantile(q=0.99, axis=0)['Count']
         min99 = dataframe.quantile(q=0.01, axis=0)['Count']
@@ -308,7 +309,7 @@ def reader(model_id):
         name = {'Count': counts, 'Date': dates}
         dataframe = DataFrame.from_dict(name)
         #dataframe['Date'] = dataframe['Date'].map(lambda x: x.replace(hour=0, minute=0, second=0))
-        dataframe['Count'] = dataframe['Count'].rolling(window=4).mean()
+        #dataframe['Count'] = dataframe['Count'].rolling(window=4).mean()
         temperatures = Temperature.objects.filter(city=modelk.city).order_by('date')
         temps = {'Temp': [x.temp for x in temperatures], 'Date': [x.date for x in temperatures]}
         dateframe = DataFrame.from_dict(temps)
@@ -376,6 +377,7 @@ def reader(model_id):
     print(testPredictPlot[:, 0].tolist())
     print(trainPredictPlot[:, 0].tolist())
     print(dataset[:, 0].tolist())
+    print(len(dateString))
     data = {
         'labels': dateString,
         'datasets': [{
@@ -412,8 +414,12 @@ def predict():
 
     models = KerasModel.objects.filter(active=True)
     for modelk in models:
+        if modelk.weekly:
+            diseases = AggregatedDisease.objects.filter(city=modelk.city, illness=modelk.illness).order_by('date')[:3*modelk.modelstructure.lookback+5]
+        elif not modelk.weekly:
+            diseases = AggregatedDiseaseDaily.objects.filter(city=modelk.city, illness=modelk.illness).order_by('date')[:3*modelk.modelstructure.lookback+5]
 
-        diseases = AggregatedDisease.objects.filter(city=modelk.city, illness=modelk.illness).order_by('-date')[:3*modelk.modelstructure.lookback+5]
+        #diseases = AggregatedDisease.objects.filter(city=modelk.city, illness=modelk.illness).order_by('-date')[:3*modelk.modelstructure.lookback+5]
         counts = list(reversed([x.count for x in diseases]))
         dates = list(reversed([x.date for x in diseases]))
         name = {'Count': counts}
@@ -474,6 +480,7 @@ def load_temperature():
 @shared_task
 def load_forecast():
     key = 'd6bbc51396ecf08d4b745f198cb99c87'
+    preddate = datetime.now()
     cities = City.objects.all()
     for city in cities:
         request = requests.get('http://api.openweathermap.org/data/2.5/forecast?q=' + city.internationalName +'&appid=' + key)
@@ -486,6 +493,7 @@ def load_forecast():
                     temp.date = datetime.strptime(i['dt_txt'], '%Y-%m-%d %H:%M:%S')
                     temp.temp = i['main']['temp']
                     temp.humidity = i['main']['humidity']
+                    temp.dateOfPrediction = preddate
                     temp.save()
         time.sleep(1)
     return 'success'

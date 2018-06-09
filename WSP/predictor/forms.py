@@ -6,10 +6,12 @@ class CityForm(forms.ModelForm):
 
     class Meta:
         model = City
-        fields = ('name', 'internationalName')
+        fields = ('name', 'internationalName', 'latitude', 'longtitude' )
         labels = {
             "name": "Название города",
-            "internationalName": "Латинское название"
+            "internationalName": "Латинское название",
+            'latitude': 'Широта',
+            'longtitude': 'Долгота'
         }
 
 def getIllCityChoices():

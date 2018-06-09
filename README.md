@@ -3,6 +3,7 @@
 2) Создать там БД "wsp"
 3) Установить rabbitmq
 4) Поставить все пакеты командой "pip install -r requirements.txt"
+5) Установить пакет pgadmin3 (apt install pgadmin3)
 5) Создать пользователя БД. Настройки пользователя в WSP/WSP/settings.py
 6) Сделать миграции:
 python manage.py makemigrations

@@ -265,6 +265,7 @@ def trainModel(request, model_id):
             except:
                 weekly = False
             trainer.delay(model_id, name, description, cityid, illnessid, weekly, weather)
+            #trainer(model_id, name, description, cityid, illnessid, weekly, weather)
             return render(request, 'predictor/trainmodel.html', {'form': form, 'success': 2})
         else:
             return render(request, 'predictor/trainmodel.html', {'form': form, 'success': 1})
@@ -331,7 +332,7 @@ def trainedmodelremove(request, modelid):
 
 def testtrainedmodel(request, modelid):
 
-    model = KerasModel.objects.get(id=modelid)
+    #model = KerasModel.objects.get(id=modelid)
     task = reader.delay(modelid)
     #mae, mape, data = reader(modelid)
     mae,mape,data = task.get()
