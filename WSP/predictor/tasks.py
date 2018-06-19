@@ -3,7 +3,6 @@ from __future__ import absolute_import, unicode_literals
 from celery import shared_task
 from .models import City, Illness, KerasModel, UntrainedModel, AggregatedDiseaseDaily, AggregatedDisease, Tasker, DiseasePrediction, Temperature, TemperaturePredicted
 import numpy
-import matplotlib.pyplot as plt
 import math
 from keras.models import Sequential, model_from_json
 from keras.layers import Dense, Dropout, Activation
@@ -18,8 +17,10 @@ from datetime import datetime, timedelta
 import json as jason
 import requests
 import time
+import darksky
 import pandas as pd
 from celery import Task
+from datetime import date
 # convert an array of values into a dataset matrix
 def create_dataset(dataset, look_back=3):
     dataX, dataY = [], []
@@ -457,22 +458,32 @@ def predict():
     return True
 
 
+def daterange(start_date, end_date):
+    for n in range(int((end_date - start_date).days)):
+        yield start_date + timedelta(n)
+
+
 @shared_task
 def load_temperature():
-    key = 'd6bbc51396ecf08d4b745f198cb99c87'
+
+    delta = 10
+    fulldelta = timedelta(days=delta)
+    end_date = datetime.now().date()
     cities = City.objects.all()
     for city in cities:
-        request = requests.get('http://api.openweathermap.org/data/2.5/weather?q=' + city.internationalName +'&appid=' + key)
-        if request.status_code == 200:
-            data = request.json()
-            if data['cod'] == '200':
+        start_date = end_date - fulldelta
+        for single_date in daterange(start_date, end_date):
+            key = 'c8d8c6fc3f75ea1a0547efa71c2ee24e'
+            CurrCity = key, city.latitude, city.longtitude
+            t = single_date.isoformat()
+            data = darksky.forecast(*CurrCity, time=t)
+            for hour in data.hourly:
                 temp = Temperature()
                 temp.city = city
-                temp.date = datetime.now()
-                temp.temp = data['main']['temp']
-                temp.humidity = data['main']['humidity']
+                temp.date = datetime.fromtimestamp(hour.time)
+                temp.temp = hour.temperature
+                temp.humidity = hour.humidity
                 temp.save()
-        time.sleep(1)
 
     return 'success'
 

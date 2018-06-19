@@ -1,5 +1,5 @@
 from django import forms
-from .models import City, Illness, UntrainedModel
+from .models import City, Illness, UntrainedModel, Keys
 
 
 class CityForm(forms.ModelForm):

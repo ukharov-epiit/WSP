@@ -12,3 +12,4 @@ django-mathfilters
 sqlalchemy
 psycopg2
 darkskylib
+tensorflow

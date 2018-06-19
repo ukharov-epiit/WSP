@@ -25,4 +25,5 @@ urlpatterns = [
     path('predictions/', views.predictions, name='predictions'),
     path('newtemps/', views.LoadCityTemp, name='newtemps'),
     path('loadmodelh5/', views.TrainedH5, name='loadmodelh5'),
+
 ]

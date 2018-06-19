@@ -94,3 +94,7 @@ class Tasker(models.Model):
     timeStart = models.DateTimeField()
     timeEnd = models.DateTimeField(null=True)
     result = models.CharField(max_length=50)
+
+
+class Keys(models.Model):
+    key = models.CharField(max_length=400)

@@ -1,6 +1,6 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, HttpResponse
 from .forms import CityForm, DiseaseForm, CSVAggDisease, AddJSONmodel, TrainModel, CSVTemp, AddHDR5toModel
-from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel, KerasModel, Tasker, DiseasePrediction, Temperature
+from .models import City, Illness, AggregatedDisease, AggregatedDiseaseDaily, UntrainedModel, KerasModel, Tasker, DiseasePrediction, Temperature, Keys
 from .tasks import trainer, reader, predict
 from pandas import read_csv
 from datetime import datetime
@@ -9,11 +9,12 @@ import os
 import json
 from uuid import uuid4
 import numpy
+from django.contrib.auth.decorators import login_required
 # Create your views here.
 
 
 
-
+@login_required
 def newcity(request):
     if request.method == "POST":
         form = CityForm(request.POST)
@@ -28,7 +29,7 @@ def newcity(request):
         form = CityForm()
     return render(request, 'predictor/newCity.html', {'form': form})
 
-
+@login_required
 def newdisease(request):
     if request.method == "POST":
         form = DiseaseForm(request.POST)
@@ -44,13 +45,13 @@ def newdisease(request):
 
     return render(request, 'predictor/newCity.html', {'form': form})
 
-
+@login_required
 def handle_uploaded_file(f, des, typer='.csv'):
     with open(str(des)+typer, 'wb+') as destination:
         for chunk in f.chunks():
             destination.write(chunk)
 
-
+@login_required
 def newDiseaseAgragated(request):
 
     if request.method == "POST":
@@ -86,7 +87,7 @@ def newDiseaseAgragated(request):
 
     return render(request, 'predictor/newFile.html', {'form': form, 'success': 0})
 
-
+@login_required
 def LoadCityTemp(request):
 
     if request.method == "POST":
@@ -122,7 +123,7 @@ def LoadCityTemp(request):
 
     return render(request, 'predictor/newTemps.html', {'form': form, 'success': 0})
 
-
+@login_required
 def newDiseaseAgragatedDaily(request):
 
     if request.method == "POST":
@@ -158,7 +159,7 @@ def newDiseaseAgragatedDaily(request):
 
     return render(request, 'predictor/newFile.html', {'form': form, 'success': 0})
 
-
+@login_required
 def newJSONModel(request):
 
     if request.method == "POST":
@@ -185,7 +186,7 @@ def newJSONModel(request):
 
     return render(request, 'predictor/newJSON.html', {'form': form, 'success': 0})
 
-
+@login_required
 def TrainedH5(request):
 
     if request.method == "POST":
@@ -239,14 +240,14 @@ def TrainedH5(request):
 
     return render(request, 'predictor/trainedh5.html', {'form': form, 'success': 0})
 
-
+@login_required
 def listJSONModels(request):
 
     mods = UntrainedModel.objects.all().order_by('name')
 
     return render(request, 'predictor/untrainedModelList.html', {'mods': mods})
 
-
+@login_required
 def trainModel(request, model_id):
 
     if request.method == "POST":
@@ -274,52 +275,54 @@ def trainModel(request, model_id):
 
     return render(request, 'predictor/trainmodel.html', {'form': form, 'success': 0})
 
-
+@login_required
 def listtrainedmodels(request):
 
     mods = KerasModel.objects.all().order_by('name')
 
     return render(request, 'predictor/trainedModelList.html', {'buffers': mods})
 
-
+@login_required
 def listcities(request):
 
     mods = City.objects.all().order_by('name')
 
     return render(request, 'predictor/citylist.html', {'buffers': mods})
 
-
+@login_required
 def listillness(request):
 
     mods = Illness.objects.all().order_by('name')
 
     return render(request, 'predictor/listillness.html', {'buffers': mods})
 
+@login_required
 def blank(request):
 
     return render(request, 'predictor/blank.html')
 
+@login_required
 def cityremove(request, cityid):
 
     City.objects.get(id=cityid).delete()
 
     return redirect(listcities)
 
-
+@login_required
 def illnessremove(request, illnessid):
 
     Illness.objects.get(id=illnessid).delete()
 
     return redirect(listillness)
 
-
+@login_required
 def untrainedmodelremove(request, modelid):
 
     UntrainedModel.objects.get(id=modelid).delete()
 
     return redirect(listJSONModels)
 
-
+@login_required
 def trainedmodelremove(request, modelid):
 
     model = KerasModel.objects.get(id=modelid)
@@ -329,7 +332,7 @@ def trainedmodelremove(request, modelid):
 
     return redirect(listtrainedmodels)
 
-
+@login_required
 def testtrainedmodel(request, modelid):
 
     #model = KerasModel.objects.get(id=modelid)
@@ -339,14 +342,14 @@ def testtrainedmodel(request, modelid):
 
     return render(request, 'predictor/trainedview.html', {'data': data, 'mae': mae, 'mape': mape})
 
-
+@login_required
 def tasks(request):
 
     data = Tasker.objects.all().order_by('-timeStart')[:50]
 
     return render(request, 'predictor/tasks.html', {'blocks': data})
 
-
+@login_required
 def changeactivitymodel(request, modelid):
 
     data = KerasModel.objects.get(id=modelid)
@@ -355,16 +358,94 @@ def changeactivitymodel(request, modelid):
 
     return redirect(listtrainedmodels)
 
-
+@login_required
 def predictactivity(request):
 
     predict.delay()
 
     return redirect(listtrainedmodels)
 
-
+@login_required
 def predictions(request):
 
     pred = DiseasePrediction.objects.all().order_by('-date')
 
     return render(request, 'predictor/predictions.html', {'blocks': pred})
+
+
+def setCases(request):
+    if request.method == 'POST':
+        json_data = json.loads(request.body)
+
+        key = json_data['key']
+
+        try:
+            go = Keys.objects.get(key=key)
+        except Keys.DoesNotExist:
+            go = None
+
+        if go is not None:
+            for case in json_data['case_counts']:
+                date = datetime.strptime(case['date'], '%Y-%m-%d')
+                count = case['num']
+                city = City.objects.get(id=case['city'])
+                illness = Illness.objects.get(id=case['illness'])
+                tryfind = AggregatedDiseaseDaily.objects.filter(date=date, city=city, illness=illness)
+                if len(tryfind) == 0:
+                    agg = AggregatedDiseaseDaily()
+                    agg.count = count
+                    agg.date = date
+                    agg.city = city
+                    agg.illness = illness
+                    agg.save()
+                else:
+                    tryfind[0].count = count
+                    tryfind[0].save()
+            resp = {
+                'response': 'Успешно'
+            }
+        else:
+            resp = {
+                'response': 'Неверный ключ'
+            }
+        response = json.dump(resp)
+        return HttpResponse(response, content_type='application/json')
+
+
+def getPrediction(request):
+    if request.method == 'POST':
+        json_data = json.loads(request.body)
+
+        key = json_data['key']
+
+        try:
+            go = Keys.objects.get(key=key)
+        except Keys.DoesNotExist:
+            go = None
+
+        if go is not None:
+            case = json_data
+            city = City.objects.get(id=case['city'])
+            illness = Illness.objects.get(id=case['illness'])
+            tryfind = AggregatedDiseaseDaily.objects.filter(date=date, city=city, illness=illness)
+            if len(tryfind) == 0:
+                agg = AggregatedDiseaseDaily()
+                agg.count = count
+                agg.date = date
+                agg.city = city
+                agg.illness = illness
+                agg.save()
+            else:
+                tryfind[0].count = count
+                tryfind[0].save()
+            resp = {
+                'response': 'Успешно'
+            }
+        else:
+            resp = {
+                'response': 'Неверный ключ'
+            }
+        response = json.dump(resp)
+        return HttpResponse(response, content_type='application/json')
+
+
